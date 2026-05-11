@@ -1,0 +1,55 @@
+---
+repositories:
+- name: traefik
+  url: https://traefik.github.io/charts
+- name: cert-manager
+  url: https://charts.jetstack.io
+---
+releases:
+- name: traefik
+  namespace: traefik
+  chart: traefik/traefik
+  values:
+    - deployment:
+        kind: DaemonSet
+      experimental:
+        kubernetesGateway:
+          enabled: true
+      providers:
+        kubernetesGateway:
+          enabled: true
+      gateway:
+        listeners:
+          web:
+            namespacePolicy:
+              from: All
+          websecure:
+            port: 8443
+            protocol: HTTPS
+            namespacePolicy:
+              from: All
+            hostname: blue.tipjam.xyz
+            certificateRefs:
+            - name: blue
+      ports:
+        web:
+          hostPort: 80
+        websecure:
+          hostPort: 443
+      tolerations:
+      - operator: Exists
+{{ range tuple "blue" "green" "red" }}
+- name: {{ . }}
+  namespace: default
+  chart: {{ . }}
+{{ end }}
+- name: cert-manager
+  namespace: cert-manager
+  chart: cert-manager/cert-manager
+  values:
+  - crds:
+      enabled: true
+    config:
+      enableGatewayAPI: true
+- name: cluster-issuer
+  chart: cluster-issuer
