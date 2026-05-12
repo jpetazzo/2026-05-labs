@@ -1,0 +1,53 @@
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: dockercoins
+spec:
+  goTemplate: true
+  goTemplateOptions: ["missingkey=error"]
+  generators:
+  - matrix:
+      generators:
+        - clusters: {}
+        - matrix:
+            generators:
+              - list:
+                  elements:
+                  - component: hasher
+                  - component: rng
+                  - component: worker
+                  - component: redis
+                  - component: webui
+              - list:
+                  elements:
+                  - track: dev
+                  - track: prd
+                  - track: stg
+  template:
+    metadata:
+      name: "{{ .nameNormalized }}-{{ .track }}-{{ .component }}"
+    spec:
+      project: default
+      source:
+        repoURL: "https://github.com/jpetazzo/2026-05-labs/"
+        targetRevision: main
+        path: "2-helm/generic"
+        helm:
+          releaseName: "{{ .component }}"
+          ignoreMissingValueFiles: true
+          valueFiles:
+            - "/2-helm/{{ .component }}.yaml"
+            - "/4-appset/overrides/cluster/{{ .nameNormalized }}.yaml"
+            - "/4-appset/overrides/track/{{ .track }}.yaml"
+            - "/4-appset/overrides/component/{{ .component }}.yaml"
+            - "/4-appset/overrides/{{ .nameNormalized }}-{{ .track }}-{{ .component }}.yaml"
+      destination:
+        server: "{{ .server }}"
+        namespace: "dockercoins-{{ .track }}"
+      syncPolicy:
+        automated:
+          enabled: true
+          prune: true
+          selfHeal: true
+        syncOptions:
+          - CreateNamespace=true
