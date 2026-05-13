@@ -1,0 +1,45 @@
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: generate-ingress
+spec:
+  rules:
+    - name: generate-ingress
+      match:
+        all:
+          - resources:
+              kinds:
+                - Service
+              selector:
+                matchExpressions:
+                - key: httphost
+                  operator: Exists
+      exclude:
+        any:
+          - resources:
+              namespaces:
+                - kube-system
+                - kyverno
+      context:
+        - name: domain
+          apiCall:
+            urlPath: '/api/v1/namespaces/{{request.object.metadata.namespace}}'
+            jmesPath: metadata.labels.httpdomain || '{{request.object.metadata.namespace}}.tipjam.xyz'
+      generate:
+        kind: Ingress
+        apiVersion: networking.k8s.io/v1
+        name: '{{request.object.metadata.name}}'
+        namespace: '{{request.object.metadata.namespace}}'
+        data:
+          spec:
+            rules:
+            - host: '{{request.object.metadata.labels.httphost}}.{{domain}}'
+              http:
+                paths:
+                - backend:
+                    service:
+                      name: '{{request.object.metadata.name}}'
+                      port:
+                        number: '{{request.object.spec.ports[0].targetPort}}'
+                  path: /
+                  pathType: Prefix
